@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  Show,
   SignInButton,
   SignUpButton,
   UserButton,
@@ -19,7 +18,7 @@ import {
 } from "./api.js";
 
 const RAPIDAPI_KEY  = import.meta.env.VITE_RAPIDAPI_KEY || "";
-const RAZORPAY_KEY  = import.meta.env.VITE_RAZORPAY_KEY || "";
+const RAZORPAY_KEY  = import.meta.env.VITE_RAZORPAY_KEY || import.meta.env.RAZORPAY_KEY_ID || "";
 
 const AGENTS = [
   { id:"scout",       name:"SCOUT", emoji:"🔭", role:"Job Discovery",       color:"#0071E3", steps:["Connecting to job APIs...","Scanning LinkedIn Jobs...","Scanning Indeed...","Scanning Glassdoor...","Scanning Naukri, Wellfound...","Deduplicating results...","Running match algorithm...","Top opportunities shortlisted ✓"] },
@@ -1568,20 +1567,20 @@ export default function App(){
         <button className={`nav-btn ${page==="app"?"active":""}`} onClick={()=>navTo("app")}>Launch app</button>
         <button className={`nav-btn ${page==="pricing"?"active":""}`} onClick={()=>navTo("pricing")}>Pricing</button>
         <button className={`nav-btn ${page==="extension"?"active":""}`} onClick={()=>navTo("extension")}>Extension</button>
-        <Show when="signed-in">
+        {isSignedIn&&<>
           <button className={`nav-btn ${page==="profile"?"active":""}`} onClick={()=>navTo("profile")}>Profile</button>
-        </Show>
-        <Show when="signed-out">
+        </>}
+        {!isSignedIn&&<>
           <SignInButton mode="modal">
             <button className="nav-auth-btn">Sign in</button>
           </SignInButton>
           <SignUpButton mode="modal">
             <button className="nav-auth-btn nav-auth-primary">Sign up</button>
           </SignUpButton>
-        </Show>
-        <Show when="signed-in">
+        </>}
+        {isSignedIn&&<>
           <UserButton afterSignOutUrl="/" appearance={{elements:{avatarBox:{width:36,height:36}}}} />
-        </Show>
+        </>}
       </div>
     </nav>
 

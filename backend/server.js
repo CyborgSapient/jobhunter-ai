@@ -4,7 +4,6 @@ import cors from 'cors';
 import connectDB from './db.js';
 import { clerkMiddleware } from './middleware/auth.js';
 
-// Route modules
 import webhookRouter from './routes/webhooks.js';
 import usersRouter from './routes/users.js';
 import resumesRouter from './routes/resumes.js';
@@ -16,26 +15,29 @@ import aiRouter from './routes/ai.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-/* ────────────────────────────────────────────
-   Global middleware
-   ──────────────────────────────────────────── */
-
-// CORS — allow Vite dev server
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:4173'],
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:4173',
+    'https://jobhunter-ai-git-master-cyborgsapients-projects.vercel.app',
+    'https://jobhunter-ai-two.vercel.app',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean),
   credentials: true,
 }));
 
-// Webhook route MUST be mounted BEFORE express.json()
-// because svix needs the raw body for signature verification
 app.use('/api/webhooks', webhookRouter);
-
-// Parse JSON bodies (16MB limit for resume data)
 app.use(express.json({ limit: '16mb' }));
 
-/* ────────────────────────────────────────────
-   Routes
-   ──────────────────────────────────────────── */
+app.use(async (_req, _res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 app.use('/api/users', clerkMiddleware(), usersRouter);
 app.use('/api/resumes', clerkMiddleware(), resumesRouter);
@@ -44,7 +46,6 @@ app.use('/api/missions', clerkMiddleware(), missionsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/ai', clerkMiddleware(), aiRouter);
 
-// Health check
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
@@ -53,16 +54,10 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-/* ────────────────────────────────────────────
-   Error handling
-   ──────────────────────────────────────────── */
-
-// 404 handler
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Global error handler
 app.use((err, _req, res, _next) => {
   console.error('[ERROR]', err.message);
   if (err.status === 401 || err.message?.includes('Unauthenticated')) {
@@ -75,16 +70,16 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-/* ────────────────────────────────────────────
-   Start — connect MongoDB first, then listen
-   ──────────────────────────────────────────── */
+if (process.env.VERCEL !== '1') {
+  await connectDB();
 
-await connectDB();
+  app.listen(PORT, () => {
+    console.log('\n  JobHunter.AI Backend');
+    console.log(`  Local:   http://localhost:${PORT}`);
+    console.log(`  Health:  http://localhost:${PORT}/api/health`);
+    console.log('  Routes:  /api/users, /api/resumes, /api/subscriptions, /api/missions, /api/ai');
+    console.log('  Webhook: /api/webhooks/clerk\n');
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`\n  ⚡ JobHunter.AI Backend`);
-  console.log(`  ➜ Local:   http://localhost:${PORT}`);
-  console.log(`  ➜ Health:  http://localhost:${PORT}/api/health`);
-  console.log(`  ➜ Routes:  /api/users, /api/resumes, /api/subscriptions, /api/missions, /api/ai`);
-  console.log(`  ➜ Webhook: /api/webhooks/clerk\n`);
-});
+export default app;

@@ -6,11 +6,20 @@ import { requireAuth, syncUser, extractUser } from '../middleware/auth.js';
 
 const router = Router();
 
-// Initialize Razorpay instance
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+let razorpay = null;
+
+function getRazorpay() {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    throw new Error('Razorpay is not configured');
+  }
+  if (!razorpay) {
+    razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+  }
+  return razorpay;
+}
 
 // ── GET /api/subscriptions ─────────────────────────
 router.get('/', requireAuth(), syncUser, extractUser, async (req, res) => {
@@ -54,7 +63,7 @@ router.post('/create-order', requireAuth(), syncUser, extractUser, async (req, r
       return res.status(400).json({ error: 'Invalid plan or price' });
     }
 
-    const order = await razorpay.orders.create({
+    const order = await getRazorpay().orders.create({
       amount: price * 100, // paise
       currency: 'INR',
       receipt: `${req.userId}_${plan_name}_${Date.now()}`,
@@ -102,7 +111,7 @@ router.post('/verify', requireAuth(), syncUser, extractUser, async (req, res) =>
     }
 
     // Verify the order amount with Razorpay to prevent tampering
-    const order = await razorpay.orders.fetch(razorpay_order_id);
+    const order = await getRazorpay().orders.fetch(razorpay_order_id);
     const validPlans = { Starter: 999, Hunter: 2999, Closer: 7999 };
     if (order.amount !== validPlans[plan_name] * 100) {
       console.error('[PAYMENT] Amount mismatch:', order.amount, 'vs expected', validPlans[plan_name] * 100);
