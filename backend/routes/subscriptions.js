@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { createHmac } from 'crypto';
 import Razorpay from 'razorpay';
 import Subscription from '../models/Subscription.js';
+// User import not needed for demo bypass (uses userId directly)
 import { requireAuth, syncUser, extractUser } from '../middleware/auth.js';
 
 const router = Router();
@@ -21,12 +22,34 @@ function getRazorpay() {
   return razorpay;
 }
 
+/** Helper: returns a synthetic Closer sub if the user is the demo account */
+function getDemoSub(userId) {
+  const demoUserId = process.env.DEMO_TEST_USER_ID;
+  if (!demoUserId || userId !== demoUserId) return null;
+  return {
+    _id: 'demo_bypass',
+    user_id: userId,
+    plan_name: 'Closer',
+    price: 0,
+    currency: 'INR',
+    status: 'active',
+    purchased_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    _demo: true,
+  };
+}
+
 // ── GET /api/subscriptions ─────────────────────────
 router.get('/', requireAuth(), syncUser, extractUser, async (req, res) => {
   try {
     const subscriptions = await Subscription.find({ user_id: req.userId })
       .sort({ purchased_at: -1 });
-    res.json({ subscriptions });
+
+    // Inject demo sub if applicable
+    const demoSub = getDemoSub(req.userId);
+    const all = demoSub ? [demoSub, ...subscriptions] : subscriptions;
+
+    res.json({ subscriptions: all });
   } catch (err) {
     console.error('[GET /subscriptions]', err.message);
     res.status(500).json({ error: 'Failed to fetch subscriptions' });
@@ -36,6 +59,10 @@ router.get('/', requireAuth(), syncUser, extractUser, async (req, res) => {
 // ── GET /api/subscriptions/active ──────────────────
 router.get('/active', requireAuth(), syncUser, extractUser, async (req, res) => {
   try {
+    // Demo bypass
+    const demoSub = getDemoSub(req.userId);
+    if (demoSub) return res.json({ subscription: demoSub });
+
     const subscription = await Subscription.findOne({
       user_id: req.userId,
       status: 'active',

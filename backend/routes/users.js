@@ -10,6 +10,41 @@ router.get('/me', requireAuth(), syncUser, extractUser, async (req, res) => {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    // ── Demo account bypass ──────────────────────────
+    // If the user's Clerk ID matches DEMO_TEST_USER_ID, grant full Closer access
+    // without requiring a real Razorpay purchase.
+    const demoUserId = process.env.DEMO_TEST_USER_ID;
+    if (demoUserId && req.userId === demoUserId) {
+      const [total_resumes, total_missions, total_applications] = await Promise.all([
+        Resume.countDocuments({ user_id: req.userId }),
+        Mission.countDocuments({ user_id: req.userId }),
+        JobApplication.countDocuments({ user_id: req.userId }),
+      ]);
+
+      return res.json({
+        user,
+        subscription: {
+          _id: 'demo_bypass',
+          user_id: req.userId,
+          plan_name: 'Closer',
+          price: 0,
+          status: 'active',
+          purchased_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          _demo: true,
+        },
+        stats: { total_resumes, total_missions, total_applications },
+        limits: {
+          plan: 'Closer',
+          max_applications: 999999,
+          used_applications: total_applications,
+          can_apply: true,
+          _demo: true,
+        },
+      });
+    }
+    // ── End demo bypass ──────────────────────────────
+
     const subscription = await Subscription.findOne({
       user_id: req.userId,
       status: 'active',

@@ -103,159 +103,132 @@ function mockResume(role) {
 function mockJobs(role,loc){ return ["Razorpay","PhonePe","Zepto","Meesho","Swiggy","CRED","Chargebee","Freshworks"].map((co,i)=>({ id:i+1,title:role,company:co,location:loc,match:Math.floor(78+Math.random()*19),source:["LinkedIn","Naukri","Glassdoor","Indeed","Wellfound"][i%5],salary:`₹${18+i*3}–${26+i*3} LPA`,applyUrl:"#",description:`Exciting ${role} opportunity at ${co}.`,status:"Found",resumeScore:(88+Math.random()*11).toFixed(1),referral:null,interview:null })); }
 
 const RESUME_TEMPLATES = [
-  { id:"executive", name:"Executive", desc:"Professional with blue accents", accent:"#2563EB", preview:"exec" },
-  { id:"modern",    name:"Modern",    desc:"Dark header, teal accents",     accent:"#0D9488", preview:"mod"  },
-  { id:"minimal",   name:"Minimal",   desc:"Elegant simplicity, refined",   accent:"#374151", preview:"min"  },
-  { id:"creative",  name:"Creative",  desc:"Bold purple, strong presence",  accent:"#7C3AED", preview:"cre"  },
+  { id:"executive", name:"Executive", desc:"Bold dark header, black accents",   accent:"#1a1a1a", preview:"exec" },
+  { id:"modern",    name:"Modern",    desc:"Dark teal header, green accents",   accent:"#0D9488", preview:"mod"  },
+  { id:"minimal",   name:"Minimal",   desc:"Clean serif, charcoal accents",     accent:"#374151", preview:"min"  },
+  { id:"creative",  name:"Creative",  desc:"Deep purple header, bold presence", accent:"#7C3AED", preview:"cre"  },
 ];
 
+const esc = (value) => String(value ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#039;");
+
+const cleanList = (items) => (Array.isArray(items) ? items : [])
+  .map((item) => esc(item))
+  .filter(Boolean);
+
 function buildResumeHTML(templateId, rd, bullets, role) {
-  const n     = rd?.name       || "Your Name";
-  const jt    = rd?.currentRole|| role || "Professional";
-  const em    = rd?.email      || "";
-  const ph    = rd?.phone      || "";
-  const loc   = rd?.location   || "";
-  const li    = rd?.linkedin   || "";
-  const gh    = rd?.github     || "";
-  const pf    = rd?.portfolio  || "";
-  const sum   = rd?.summary    || "";
-  const sk    = rd?.topSkills?.length ? rd.topSkills : ["Leadership","Strategic Planning","Cross-functional Collaboration","Data Analysis","Process Optimization","Stakeholder Management"];
-  const edu   = rd?.education  || "";
-  const certs = rd?.certifications?.length ? rd.certifications : [];
-  const projs = rd?.projects?.length ? rd.projects : [];
-  const achs  = rd?.achievements?.length ? rd.achievements : [];
+  const n     = esc(rd?.name || "Your Name");
+  const jt    = esc(rd?.currentRole || role || "Professional");
+  const em    = esc(rd?.email);
+  const ph    = esc(rd?.phone);
+  const loc   = esc(rd?.location);
+  const li    = esc(rd?.linkedin);
+  const gh    = esc(rd?.github);
+  const pf    = esc(rd?.portfolio);
+  const sum   = esc(rd?.summary);
+  const sk    = rd?.topSkills?.length ? cleanList(rd.topSkills) : ["Leadership","Strategic Planning","Cross-functional Collaboration","Data Analysis","Process Optimization","Stakeholder Management"];
+  const edu   = esc(rd?.education);
+  const certs = cleanList(rd?.certifications);
+  const projs = Array.isArray(rd?.projects) ? rd.projects.map(p=>({ name:esc(p?.name), description:esc(p?.description), impact:esc(p?.impact) })) : [];
+  const achs  = cleanList(rd?.achievements);
 
   const contact = [em, ph, loc, li, gh, pf].filter(Boolean);
 
   const expItems = rd?.experience?.length
-    ? rd.experience.map(e => ({ role:e.role, company:e.company, duration:e.duration, bul:e.bullets?.length?e.bullets:bullets }))
-    : [{ role:jt, company:"", duration:"", bul:bullets.length?bullets:["Delivered measurable results aligned with organizational goals","Collaborated with cross-functional teams to drive key initiatives","Optimized processes that improved efficiency and business outcomes"] }];
+    ? rd.experience.map(e => ({ role:esc(e.role), company:esc(e.company), duration:esc(e.duration), bul:cleanList(e.bullets?.length?e.bullets:bullets) }))
+    : [{ role:jt, company:"", duration:"", bul:bullets.length?cleanList(bullets):["Delivered measurable results aligned with organizational goals","Collaborated with cross-functional teams to drive key initiatives","Optimized processes that improved efficiency and business outcomes"] }];
 
-  /* helper: experience block builder — avoids page-break-inside on the header row only,
-     lets bullet lists flow naturally across pages so no huge blank gaps appear */
-  const mkExp = (items, accent, headColor, compColor, bulColor) => items.map(e=>`<div style="margin-bottom:10px;">
-    <div style="page-break-inside:avoid;display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;">
+  /* helper: experience block builder — each entry stays together on one page */
+  const mkExp = (items, accent, headColor, compColor, bulColor) => items.map(e=>`<div class="keep-together" style="margin-bottom:9px;page-break-inside:avoid;break-inside:avoid;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;gap:8px;">
       <div><span style="font-weight:700;font-size:10pt;color:${headColor};">${e.role}</span>${e.company?`<span style="color:${accent};margin:0 6px;">|</span><span style="font-size:9.5pt;color:${compColor};">${e.company}</span>`:""}</div>
       ${e.duration?`<span style="font-size:8pt;color:${accent};font-weight:600;white-space:nowrap;">${e.duration}</span>`:""}
     </div>
-    <ul style="padding-left:15px;margin:2px 0 0;">${e.bul.map(b=>`<li style="font-size:9pt;color:${bulColor};margin-bottom:2px;line-height:1.45;">${b}</li>`).join("")}</ul>
+    <ul style="padding-left:14px;margin:2px 0 0;">${e.bul.map(b=>`<li style="font-size:9pt;color:${bulColor};margin-bottom:2px;line-height:1.42;">${b}</li>`).join("")}</ul>
   </div>`).join("");
 
-  /* helper: render projects section */
-  const mkProjects = (items, accent, headColor, descColor) => items.map(p=>`<div style="margin-bottom:8px;page-break-inside:avoid;">
+  /* helper: render projects section — each project stays together */
+  const mkProjects = (items, accent, headColor, descColor) => items.map(p=>`<div class="keep-together" style="margin-bottom:7px;page-break-inside:avoid;break-inside:avoid;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;">
       <span style="font-weight:700;font-size:9.5pt;color:${headColor};">${p.name||""}</span>
     </div>
-    ${p.description?`<div style="font-size:9pt;color:${descColor};line-height:1.45;">${p.description}</div>`:""}
+    ${p.description?`<div style="font-size:9pt;color:${descColor};line-height:1.42;">${p.description}</div>`:""}
     ${p.impact?`<div style="font-size:8.5pt;color:${accent};font-weight:600;margin-top:2px;">Impact: ${p.impact}</div>`:""}
   </div>`).join("");
 
   /* helper: render simple list (certifications, achievements) as bullet list */
-  const mkList = (items, color) => `<ul style="padding-left:15px;margin:2px 0 0;">${items.map(x=>`<li style="font-size:9pt;color:${color};margin-bottom:2px;line-height:1.45;">${x}</li>`).join("")}</ul>`;
+  const mkList = (items, color) => `<ul style="padding-left:14px;margin:2px 0 0;">${items.map(x=>`<li style="font-size:9pt;color:${color};margin-bottom:2px;line-height:1.42;">${x}</li>`).join("")}</ul>`;
+
+  /* helper: wrap a whole section (heading + content) to prevent orphaned headers.
+     For short sections (certs, achievements, education): keepAll=true keeps everything on one page.
+     For longer sections (experience, projects): just keeps heading glued to content start. */
+  const wrapSection = (heading, content, keepAll=false) => {
+    if (keepAll) {
+      return `<div class="keep-together" style="page-break-inside:avoid;break-inside:avoid;margin-bottom:8px;">${heading}${content}</div>`;
+    }
+    return `<div style="margin-bottom:8px;"><div class="section-head" style="page-break-after:avoid;break-after:avoid;">${heading}</div>${content}</div>`;
+  };
 
   if (templateId === "executive") {
-    return { wrapperStyle:"width:210mm;font-family:'Segoe UI',Calibri,Arial,sans-serif;color:#1e293b;font-size:10pt;line-height:1.4;background:#fff;padding:14mm 16mm 12mm;box-sizing:border-box;",
+    const secH = (t) => `<div style="font-size:10pt;font-weight:800;text-transform:uppercase;letter-spacing:2.5px;color:#1a1a1a;border-bottom:2.5px solid #1a1a1a;padding-bottom:3px;margin-bottom:6px;">${t}</div>`;
+    const skillCols = (() => { const c=[[],[],[]]; sk.forEach((s,i)=>c[i%3].push(s)); return `<div style="display:flex;gap:12px;border:1.5px solid #d1d5db;padding:8px 12px;">${c.map(col=>`<div style="flex:1;font-size:8.5pt;color:#374151;line-height:1.7;">${col.map(s=>`<div>• ${s}</div>`).join("")}</div>`).join("")}</div>`; })();
+    const expB = expItems.map(e=>`<div class="keep-together" style="margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;"><div><span style="font-weight:700;font-size:10.5pt;color:#1a1a1a;">${e.role}</span>${e.company?` <span style="color:#555;font-size:10pt;"> - ${e.company}</span>`:""}</div>${e.duration?`<span style="font-size:8.5pt;font-weight:700;color:#1a1a1a;white-space:nowrap;">${e.duration}</span>`:""}</div><ul style="padding-left:16px;margin:2px 0 0;">${e.bul.map(b=>`<li style="font-size:9.5pt;color:#333;margin-bottom:3px;line-height:1.45;">${b}</li>`).join("")}</ul></div>`).join("");
+    const hasBot = edu||certs.length||projs.length||achs.length;
+    const leftC = `${edu?`<div style="margin-bottom:8px;"><div style="font-weight:700;font-size:9.5pt;color:#1a1a1a;margin-bottom:3px;">Education</div><div style="font-size:9pt;color:#444;line-height:1.45;">${edu}</div></div>`:""}${certs.length?`<div><div style="font-weight:700;font-size:9.5pt;color:#1a1a1a;margin-bottom:3px;">Certifications</div><div style="font-size:9pt;color:#444;line-height:1.55;">${certs.join(", ")}</div></div>`:""}`;
+    const rightC = `${achs.length?`<ul style="padding-left:14px;margin:0;">${achs.map(a=>`<li style="font-size:9pt;color:#333;margin-bottom:3px;line-height:1.45;">${a}</li>`).join("")}</ul>`:""}`;
+    return { wrapperStyle:"width:178mm;font-family:Calibri,'Segoe UI',Arial,sans-serif;color:#1a1a1a;font-size:10pt;line-height:1.4;background:#fff;padding:0;box-sizing:border-box;",
       html:`
-      <div style="text-align:center;margin-bottom:4px;">
-        <div style="font-size:24pt;font-weight:800;letter-spacing:2px;color:#1e293b;text-transform:uppercase;">${n}</div>
-        <div style="font-size:10pt;color:#2563EB;font-weight:500;margin:3px 0 6px;letter-spacing:0.5px;">${jt}</div>
-        <div style="width:50px;height:2.5px;background:#2563EB;margin:0 auto 6px;border-radius:2px;"></div>
-        <div style="font-size:8.5pt;color:#64748b;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;">${contact.map(c=>`<span>${c}</span>`).join('<span style="color:#cbd5e1;">|</span>')}</div>
+      <div style="background:#1a1a1a;padding:10mm 8mm 7mm;">
+        <div style="font-size:20pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:3px;margin-bottom:2px;">${jt}</div>
+        <div style="font-size:9pt;color:#d4d4d4;line-height:1.6;">${sum||""}</div>
       </div>
-      <div style="height:1px;background:#e2e8f0;margin:8px 0;"></div>
-      ${sum?`<div style="margin-bottom:8px;"><div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#1e293b;border-left:3px solid #2563EB;padding-left:8px;margin-bottom:4px;">Professional Summary</div><div style="font-size:9pt;color:#475569;line-height:1.5;">${sum}</div></div>`:""}
-      <div style="margin-bottom:8px;">
-        <div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#1e293b;border-left:3px solid #2563EB;padding-left:8px;margin-bottom:5px;">Core Competencies</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px;">${sk.map(s=>`<span style="border:1px solid #2563EB;border-radius:4px;padding:2px 8px;font-size:8pt;color:#2563EB;font-weight:500;">${s}</span>`).join("")}</div>
-      </div>
-      <div style="margin-bottom:8px;">
-        <div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#1e293b;border-left:3px solid #2563EB;padding-left:8px;margin-bottom:6px;">Professional Experience</div>
-        ${mkExp(expItems,"#2563EB","#1e293b","#64748b","#475569")}
-      </div>
-      ${projs.length?`<div style="margin-bottom:8px;"><div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#1e293b;border-left:3px solid #2563EB;padding-left:8px;margin-bottom:6px;">Projects &amp; Achievements</div>${mkProjects(projs,"#2563EB","#1e293b","#475569")}</div>`:""}
-      ${certs.length?`<div style="margin-bottom:8px;"><div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#1e293b;border-left:3px solid #2563EB;padding-left:8px;margin-bottom:4px;">Certifications</div>${mkList(certs,"#475569")}</div>`:""}
-      ${achs.length?`<div style="margin-bottom:8px;"><div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#1e293b;border-left:3px solid #2563EB;padding-left:8px;margin-bottom:4px;">Key Achievements</div>${mkList(achs,"#475569")}</div>`:""}
-      ${edu?`<div style="page-break-inside:avoid;"><div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#1e293b;border-left:3px solid #2563EB;padding-left:8px;margin-bottom:4px;">Education &amp; Credentials</div><div style="font-size:9pt;color:#475569;">${edu}</div></div>`:""}`
-    };
-  }
-
-  if (templateId === "modern") {
-    return { wrapperStyle:"width:210mm;font-family:'Segoe UI',Calibri,Arial,sans-serif;color:#1e293b;font-size:10pt;line-height:1.4;background:#fff;padding:0;box-sizing:border-box;",
-      html:`
-      <div style="background:linear-gradient(135deg,#0f172a 0%,#134e4a 100%);padding:14mm 16mm 10mm;">
-        <div style="font-size:24pt;font-weight:800;color:#fff;letter-spacing:2px;text-transform:uppercase;margin-bottom:3px;">${n}</div>
-        <div style="font-size:10pt;color:#5eead4;font-weight:500;letter-spacing:0.5px;margin-bottom:8px;">${jt}</div>
-        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:8pt;color:#94a3b8;">${contact.map(c=>`<span>${c}</span>`).join("")}</div>
-      </div>
-      <div style="padding:10mm 16mm 12mm;">
-      ${sum?`<div style="margin-bottom:8px;"><div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#134e4a;padding-bottom:3px;margin-bottom:4px;border-bottom:2px solid #0d9488;">Professional Summary</div><div style="font-size:9pt;color:#475569;line-height:1.5;">${sum}</div></div>`:""}
-      <div style="margin-bottom:8px;">
-        <div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#134e4a;padding-bottom:3px;margin-bottom:5px;border-bottom:2px solid #0d9488;">Core Competencies</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px;">${sk.map(s=>`<span style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:4px;padding:2px 8px;font-size:8pt;color:#134e4a;font-weight:500;">${s}</span>`).join("")}</div>
-      </div>
-      <div style="margin-bottom:8px;">
-        <div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#134e4a;padding-bottom:3px;margin-bottom:6px;border-bottom:2px solid #0d9488;">Professional Experience</div>
-        ${mkExp(expItems,"#0d9488","#134e4a","#64748b","#475569")}
-      </div>
-      ${projs.length?`<div style="margin-bottom:8px;"><div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#134e4a;padding-bottom:3px;margin-bottom:6px;border-bottom:2px solid #0d9488;">Projects &amp; Achievements</div>${mkProjects(projs,"#0d9488","#134e4a","#475569")}</div>`:""}
-      ${certs.length?`<div style="margin-bottom:8px;"><div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#134e4a;padding-bottom:3px;margin-bottom:4px;border-bottom:2px solid #0d9488;">Certifications</div>${mkList(certs,"#475569")}</div>`:""}
-      ${achs.length?`<div style="margin-bottom:8px;"><div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#134e4a;padding-bottom:3px;margin-bottom:4px;border-bottom:2px solid #0d9488;">Key Achievements</div>${mkList(achs,"#475569")}</div>`:""}
-      ${edu?`<div style="page-break-inside:avoid;"><div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#134e4a;padding-bottom:3px;margin-bottom:4px;border-bottom:2px solid #0d9488;">Education &amp; Credentials</div><div style="font-size:9pt;color:#475569;">${edu}</div></div>`:""}
+      <div style="background:#f3f4f6;padding:4px 8mm;font-size:8pt;color:#555;display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid #d1d5db;">${contact.map(c=>`<span>${c}</span>`).join('<span style="color:#bbb;"> | </span>')}</div>
+      <div style="padding:6mm 0 0;">
+        ${wrapSection(secH("Skills & Expertise"),skillCols,true)}
+        ${wrapSection(secH("Professional Experience"),expB)}
+        ${projs.length?wrapSection(secH("Projects"),mkProjects(projs,"#1a1a1a","#1a1a1a","#444")):""}
+        ${hasBot?`<div style="margin-top:4px;">${secH("Education & Certifications"+(achs.length?" / Key Achievements":""))}<div style="display:flex;gap:20px;"><div style="flex:1;">${leftC}</div>${achs.length?`<div style="flex:1;">${rightC}</div>`:""}</div></div>`:""}
       </div>`
     };
   }
 
-  if (templateId === "minimal") {
-    return { wrapperStyle:"width:210mm;font-family:'Georgia','Times New Roman',serif;color:#111827;font-size:10pt;line-height:1.45;background:#fff;padding:14mm 16mm 12mm;box-sizing:border-box;",
-      html:`
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4px;">
-        <div>
-          <div style="font-size:22pt;font-weight:700;color:#111827;letter-spacing:0.5px;">${n}</div>
-          <div style="font-size:10pt;color:#6b7280;margin-top:2px;">${jt}</div>
-        </div>
-        <div style="text-align:right;font-size:8pt;color:#9ca3af;line-height:1.5;">${contact.join("<br/>")}</div>
-      </div>
-      <div style="height:1px;background:#e5e7eb;margin:6px 0 10px;"></div>
-      ${sum?`<div style="margin-bottom:10px;"><div style="font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#9ca3af;margin-bottom:4px;">Summary</div><div style="font-size:9pt;color:#4b5563;line-height:1.5;font-style:italic;">${sum}</div></div>`:""}
-      <div style="margin-bottom:10px;">
-        <div style="font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#9ca3af;margin-bottom:5px;">Expertise</div>
-        <div style="font-size:8.5pt;color:#374151;line-height:1.6;">${sk.join("  ·  ")}</div>
-      </div>
-      <div style="margin-bottom:10px;">
-        <div style="page-break-inside:avoid;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#9ca3af;margin-bottom:6px;">Experience</div>
-        ${mkExp(expItems,"#9ca3af","#111827","#6b7280","#4b5563")}
-      </div>
-      ${projs.length?`<div style="margin-bottom:10px;"><div style="page-break-inside:avoid;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#9ca3af;margin-bottom:6px;">Projects &amp; Achievements</div>${mkProjects(projs,"#9ca3af","#111827","#4b5563")}</div>`:""}
-      ${certs.length?`<div style="margin-bottom:10px;"><div style="page-break-inside:avoid;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#9ca3af;margin-bottom:4px;">Certifications</div>${mkList(certs,"#4b5563")}</div>`:""}
-      ${achs.length?`<div style="margin-bottom:10px;"><div style="page-break-inside:avoid;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#9ca3af;margin-bottom:4px;">Key Achievements</div>${mkList(achs,"#4b5563")}</div>`:""}
-      ${edu?`<div style="page-break-inside:avoid;"><div style="font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#9ca3af;margin-bottom:4px;">Education</div><div style="font-size:9pt;color:#4b5563;">${edu}</div></div>`:""}`
+  if (templateId === "modern") {
+    const secH = (t) => `<div style="font-size:10pt;font-weight:800;text-transform:uppercase;letter-spacing:2.5px;color:#134e4a;border-bottom:2.5px solid #0d9488;padding-bottom:3px;margin-bottom:6px;">${t}</div>`;
+    const skC = (() => { const c=[[],[],[]]; sk.forEach((s,i)=>c[i%3].push(s)); return `<div style="display:flex;gap:12px;border:1.5px solid #99f6e4;padding:8px 12px;background:#f0fdfa;">${c.map(col=>`<div style="flex:1;font-size:8.5pt;color:#134e4a;line-height:1.7;">${col.map(s=>`<div>• ${s}</div>`).join("")}</div>`).join("")}</div>`; })();
+    const exB = expItems.map(e=>`<div class="keep-together" style="margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;"><div><span style="font-weight:700;font-size:10.5pt;color:#134e4a;">${e.role}</span>${e.company?` <span style="color:#555;font-size:10pt;"> - ${e.company}</span>`:""}</div>${e.duration?`<span style="font-size:8.5pt;font-weight:700;color:#0d9488;white-space:nowrap;">${e.duration}</span>`:""}</div><ul style="padding-left:16px;margin:2px 0 0;">${e.bul.map(b=>`<li style="font-size:9.5pt;color:#333;margin-bottom:3px;line-height:1.45;">${b}</li>`).join("")}</ul></div>`).join("");
+    const hB = edu||certs.length||projs.length||achs.length;
+    const lC = `${edu?`<div style="margin-bottom:8px;"><div style="font-weight:700;font-size:9.5pt;color:#134e4a;margin-bottom:3px;">Education</div><div style="font-size:9pt;color:#444;line-height:1.45;">${edu}</div></div>`:""}${certs.length?`<div><div style="font-weight:700;font-size:9.5pt;color:#134e4a;margin-bottom:3px;">Certifications</div><div style="font-size:9pt;color:#444;line-height:1.55;">${certs.join(", ")}</div></div>`:""}`;
+    const rC = `${projs.length?`<ul style="padding-left:14px;margin:0 0 6px;">${projs.map(p=>`<li style="font-size:9pt;color:#333;margin-bottom:3px;line-height:1.45;"><strong>${p.name||""}</strong>${p.impact?` — ${p.impact}`:""}</li>`).join("")}</ul>`:""}${achs.length?`<ul style="padding-left:14px;margin:0;">${achs.map(a=>`<li style="font-size:9pt;color:#333;margin-bottom:3px;line-height:1.45;">${a}</li>`).join("")}</ul>`:""}`;
+    return { wrapperStyle:"width:178mm;font-family:Calibri,'Segoe UI',Arial,sans-serif;color:#1a1a1a;font-size:10pt;line-height:1.4;background:#fff;padding:0;box-sizing:border-box;",
+      html:`<div style="background:linear-gradient(135deg,#0f172a 0%,#134e4a 100%);padding:10mm 8mm 7mm;"><div style="font-size:20pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:3px;margin-bottom:2px;">${jt}</div><div style="font-size:9pt;color:#94dbce;line-height:1.6;">${sum||""}</div></div><div style="background:#f0fdfa;padding:4px 8mm;font-size:8pt;color:#555;display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid #99f6e4;">${contact.map(c=>`<span>${c}</span>`).join('<span style="color:#bbb;"> | </span>')}</div><div style="padding:6mm 0 0;">${wrapSection(secH("Skills & Expertise"),skC,true)}${wrapSection(secH("Professional Experience"),exB)}${hB?`<div style="margin-top:4px;">${secH("Education & Certifications"+((projs.length||achs.length)?" / Projects & Achievements":""))}<div style="display:flex;gap:20px;"><div style="flex:1;">${lC}</div>${(projs.length||achs.length)?`<div style="flex:1;">${rC}</div>`:""}</div></div>`:""}</div>`
     };
   }
 
-  /* creative */
-  return { wrapperStyle:"width:210mm;font-family:'Segoe UI',Calibri,Arial,sans-serif;color:#1e1b4b;font-size:10pt;line-height:1.4;background:#fff;padding:0;box-sizing:border-box;",
-    html:`
-    <div style="border-left:6px solid #7c3aed;padding:14mm 16mm 12mm 16mm;">
-      <div style="margin-bottom:6px;">
-        <div style="font-size:26pt;font-weight:900;color:#1e1b4b;letter-spacing:1px;line-height:1.1;">${n}</div>
-        <div style="font-size:10pt;color:#7c3aed;font-weight:600;margin-top:3px;letter-spacing:0.3px;">${jt}</div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:8pt;color:#6b7280;margin-top:6px;">${contact.map(c=>`<span>${c}</span>`).join('<span style="color:#c4b5fd;">•</span>')}</div>
-      </div>
-      <div style="height:2px;background:linear-gradient(90deg,#7c3aed,#c4b5fd,transparent);margin:8px 0 10px;"></div>
-      ${sum?`<div style="margin-bottom:8px;"><div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#7c3aed;margin-bottom:4px;">Professional Summary</div><div style="font-size:9pt;color:#475569;line-height:1.5;">${sum}</div></div>`:""}
-      <div style="margin-bottom:8px;">
-        <div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#7c3aed;margin-bottom:5px;">Core Competencies</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px;">${sk.map(s=>`<span style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:5px;padding:2px 8px;font-size:8pt;color:#5b21b6;font-weight:500;">${s}</span>`).join("")}</div>
-      </div>
-      <div style="margin-bottom:8px;">
-        <div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#7c3aed;margin-bottom:6px;">Professional Experience</div>
-        ${mkExp(expItems,"#7c3aed","#1e1b4b","#6b7280","#475569")}
-      </div>
-      ${projs.length?`<div style="margin-bottom:8px;"><div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#7c3aed;margin-bottom:6px;">Projects &amp; Achievements</div>${mkProjects(projs,"#7c3aed","#1e1b4b","#475569")}</div>`:""}
-      ${certs.length?`<div style="margin-bottom:8px;"><div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#7c3aed;margin-bottom:4px;">Certifications</div>${mkList(certs,"#475569")}</div>`:""}
-      ${achs.length?`<div style="margin-bottom:8px;"><div style="page-break-inside:avoid;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#7c3aed;margin-bottom:4px;">Key Achievements</div>${mkList(achs,"#475569")}</div>`:""}
-      ${edu?`<div style="page-break-inside:avoid;"><div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;color:#7c3aed;margin-bottom:4px;">Education &amp; Credentials</div><div style="font-size:9pt;color:#475569;">${edu}</div></div>`:""}
-    </div>`
+  if (templateId === "minimal") {
+    const secH = (t) => `<div style="font-size:10pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#374151;border-bottom:1.5px solid #9ca3af;padding-bottom:3px;margin-bottom:6px;">${t}</div>`;
+    const skC = (() => { const c=[[],[],[]]; sk.forEach((s,i)=>c[i%3].push(s)); return `<div style="display:flex;gap:12px;padding:6px 0;">${c.map(col=>`<div style="flex:1;font-size:8.5pt;color:#4b5563;line-height:1.7;">${col.map(s=>`<div>• ${s}</div>`).join("")}</div>`).join("")}</div>`; })();
+    const exB = expItems.map(e=>`<div class="keep-together" style="margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;"><div><span style="font-weight:700;font-size:10.5pt;color:#111827;">${e.role}</span>${e.company?` <span style="color:#6b7280;font-size:10pt;"> - ${e.company}</span>`:""}</div>${e.duration?`<span style="font-size:8.5pt;font-weight:600;color:#374151;white-space:nowrap;">${e.duration}</span>`:""}</div><ul style="padding-left:16px;margin:2px 0 0;">${e.bul.map(b=>`<li style="font-size:9.5pt;color:#4b5563;margin-bottom:3px;line-height:1.45;">${b}</li>`).join("")}</ul></div>`).join("");
+    const hB = edu||certs.length||projs.length||achs.length;
+    const lC = `${edu?`<div style="margin-bottom:8px;"><div style="font-weight:700;font-size:9.5pt;color:#111827;margin-bottom:3px;">Education</div><div style="font-size:9pt;color:#4b5563;line-height:1.45;">${edu}</div></div>`:""}${certs.length?`<div><div style="font-weight:700;font-size:9.5pt;color:#111827;margin-bottom:3px;">Certifications</div><div style="font-size:9pt;color:#4b5563;line-height:1.55;">${certs.join(", ")}</div></div>`:""}`;
+    const rC = `${projs.length?`<ul style="padding-left:14px;margin:0 0 6px;">${projs.map(p=>`<li style="font-size:9pt;color:#4b5563;margin-bottom:3px;line-height:1.45;"><strong>${p.name||""}</strong>${p.impact?` — ${p.impact}`:""}</li>`).join("")}</ul>`:""}${achs.length?`<ul style="padding-left:14px;margin:0;">${achs.map(a=>`<li style="font-size:9pt;color:#4b5563;margin-bottom:3px;line-height:1.45;">${a}</li>`).join("")}</ul>`:""}`;
+    return { wrapperStyle:"width:178mm;font-family:'Georgia','Times New Roman',Calibri,serif;color:#111827;font-size:10pt;line-height:1.4;background:#fff;padding:0;box-sizing:border-box;",
+      html:`<div style="border-bottom:2px solid #374151;padding-bottom:8px;margin-bottom:0;"><div style="font-size:22pt;font-weight:700;color:#111827;letter-spacing:0.5px;text-transform:uppercase;">${n}</div><div style="font-size:10pt;color:#6b7280;margin-top:2px;margin-bottom:6px;">${jt}</div><div style="font-size:8pt;color:#9ca3af;line-height:1.5;">${contact.join(" | ")}</div></div><div style="padding:6mm 0 0;">${sum?wrapSection(secH("Professional Summary"),`<div style="font-size:9.5pt;color:#4b5563;line-height:1.55;font-style:italic;">${sum}</div>`,true):""}${wrapSection(secH("Skills & Expertise"),skC,true)}${wrapSection(secH("Professional Experience"),exB)}${hB?`<div style="margin-top:4px;">${secH("Education & Certifications"+((projs.length||achs.length)?" / Projects & Achievements":""))}<div style="display:flex;gap:20px;"><div style="flex:1;">${lC}</div>${(projs.length||achs.length)?`<div style="flex:1;">${rC}</div>`:""}</div></div>`:""}</div>`
+    };
+  }
+
+  /* creative — purple accents with dark header */
+  const secH = (t) => `<div style="font-size:10pt;font-weight:800;text-transform:uppercase;letter-spacing:2.5px;color:#1e1b4b;border-bottom:2.5px solid #7c3aed;padding-bottom:3px;margin-bottom:6px;">${t}</div>`;
+  const skC = (() => { const c=[[],[],[]]; sk.forEach((s,i)=>c[i%3].push(s)); return `<div style="display:flex;gap:12px;border:1.5px solid #c4b5fd;padding:8px 12px;background:#faf5ff;">${c.map(col=>`<div style="flex:1;font-size:8.5pt;color:#3b0764;line-height:1.7;">${col.map(s=>`<div>• ${s}</div>`).join("")}</div>`).join("")}</div>`; })();
+  const exB = expItems.map(e=>`<div class="keep-together" style="margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;"><div><span style="font-weight:700;font-size:10.5pt;color:#1e1b4b;">${e.role}</span>${e.company?` <span style="color:#555;font-size:10pt;"> - ${e.company}</span>`:""}</div>${e.duration?`<span style="font-size:8.5pt;font-weight:700;color:#7c3aed;white-space:nowrap;">${e.duration}</span>`:""}</div><ul style="padding-left:16px;margin:2px 0 0;">${e.bul.map(b=>`<li style="font-size:9.5pt;color:#333;margin-bottom:3px;line-height:1.45;">${b}</li>`).join("")}</ul></div>`).join("");
+  const hB = edu||certs.length||projs.length||achs.length;
+  const lC = `${edu?`<div style="margin-bottom:8px;"><div style="font-weight:700;font-size:9.5pt;color:#1e1b4b;margin-bottom:3px;">Education</div><div style="font-size:9pt;color:#444;line-height:1.45;">${edu}</div></div>`:""}${certs.length?`<div><div style="font-weight:700;font-size:9.5pt;color:#1e1b4b;margin-bottom:3px;">Certifications</div><div style="font-size:9pt;color:#444;line-height:1.55;">${certs.join(", ")}</div></div>`:""}`;
+  const rC = `${projs.length?`<ul style="padding-left:14px;margin:0 0 6px;">${projs.map(p=>`<li style="font-size:9pt;color:#333;margin-bottom:3px;line-height:1.45;"><strong>${p.name||""}</strong>${p.impact?` — ${p.impact}`:""}</li>`).join("")}</ul>`:""}${achs.length?`<ul style="padding-left:14px;margin:0;">${achs.map(a=>`<li style="font-size:9pt;color:#333;margin-bottom:3px;line-height:1.45;">${a}</li>`).join("")}</ul>`:""}`;
+  return { wrapperStyle:"width:178mm;font-family:Calibri,'Segoe UI',Arial,sans-serif;color:#1e1b4b;font-size:10pt;line-height:1.4;background:#fff;padding:0;box-sizing:border-box;",
+    html:`<div style="background:#1e1b4b;padding:10mm 8mm 7mm;"><div style="font-size:20pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:3px;margin-bottom:2px;">${jt}</div><div style="font-size:9pt;color:#c4b5fd;line-height:1.6;">${sum||""}</div></div><div style="background:#faf5ff;padding:4px 8mm;font-size:8pt;color:#555;display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid #c4b5fd;">${contact.map(c=>`<span>${c}</span>`).join('<span style="color:#bbb;"> | </span>')}</div><div style="padding:6mm 0 0;">${wrapSection(secH("Skills & Expertise"),skC,true)}${wrapSection(secH("Professional Experience"),exB)}${hB?`<div style="margin-top:4px;">${secH("Education & Certifications"+((projs.length||achs.length)?" / Projects & Achievements":""))}<div style="display:flex;gap:20px;"><div style="flex:1;">${lC}</div>${(projs.length||achs.length)?`<div style="flex:1;">${rC}</div>`:""}</div></div>`:""}</div>`
   };
 }
 
@@ -271,60 +244,100 @@ async function downloadResume(rd, bullets, role, templateId) {
 
   const tpl = buildResumeHTML(templateId || "executive", rd, bullets, role);
   const resumeDiv = document.createElement("div");
-  resumeDiv.style.cssText = tpl.wrapperStyle;
-  resumeDiv.innerHTML = tpl.html;
+  resumeDiv.className = "resume-pdf-root";
+  resumeDiv.style.cssText = `${tpl.wrapperStyle};width:178mm;min-height:auto;padding:0;box-sizing:border-box;`;
+  resumeDiv.innerHTML = `
+    <style>
+      .resume-pdf-root {
+        background: #fff;
+        overflow: visible;
+      }
+      .resume-pdf-root * {
+        box-sizing: border-box;
+      }
+      /* Keep section headers glued to the content below them */
+      .resume-pdf-root .section-head {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+      /* Keep-together blocks never split across pages */
+      .resume-pdf-root .keep-together {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      /* Prevent orphaned headings at bottom of page */
+      .resume-pdf-root h1,
+      .resume-pdf-root h2,
+      .resume-pdf-root h3 {
+        page-break-after: avoid;
+        break-after: avoid;
+        orphans: 3;
+        widows: 3;
+      }
+      .resume-pdf-root p,
+      .resume-pdf-root ul {
+        orphans: 3;
+        widows: 3;
+      }
+      .resume-pdf-root li {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    </style>
+    ${tpl.html}
+  `;
 
   document.body.appendChild(resumeDiv);
   await window.html2pdf().set({
-    margin: 0,
+    margin: [14, 16, 14, 16],
     filename: `${(rd?.name||"Resume").replace(/\s+/g,"_")}_ATS_Resume.pdf`,
     image: { type:"jpeg", quality:0.99 },
-    html2canvas: { scale:3, useCORS:true, logging:false, letterRendering:true },
+    html2canvas: { scale:3, useCORS:true, logging:false, letterRendering:true, scrollY:0 },
     jsPDF: { unit:"mm", format:"a4", orientation:"portrait" },
-    pagebreak: { mode:["css","legacy"] }
+    pagebreak: { mode:["css","legacy"], avoid:[".keep-together",".section-head","li"] }
   }).from(resumeDiv).save();
   document.body.removeChild(resumeDiv);
 }
 
 function buildResumeDocxHTML(rd, bullets, role, accent) {
-  const n     = rd?.name       || "Your Name";
-  const jt    = rd?.currentRole|| role || "Professional";
-  const em    = rd?.email      || "";
-  const ph    = rd?.phone      || "";
-  const loc   = rd?.location   || "";
-  const li    = rd?.linkedin   || "";
-  const gh    = rd?.github     || "";
-  const pf    = rd?.portfolio  || "";
-  const sum   = rd?.summary    || "";
-  const sk    = rd?.topSkills?.length ? rd.topSkills : ["Leadership","Strategic Planning","Cross-functional Collaboration","Data Analysis","Process Optimization","Stakeholder Management"];
-  const edu   = rd?.education  || "";
-  const certs = rd?.certifications?.length ? rd.certifications : [];
-  const projs = rd?.projects?.length ? rd.projects : [];
-  const achs  = rd?.achievements?.length ? rd.achievements : [];
+  const n     = esc(rd?.name || "Your Name");
+  const jt    = esc(rd?.currentRole || role || "Professional");
+  const em    = esc(rd?.email);
+  const ph    = esc(rd?.phone);
+  const loc   = esc(rd?.location);
+  const li    = esc(rd?.linkedin);
+  const gh    = esc(rd?.github);
+  const pf    = esc(rd?.portfolio);
+  const sum   = esc(rd?.summary);
+  const sk    = rd?.topSkills?.length ? cleanList(rd.topSkills) : ["Leadership","Strategic Planning","Cross-functional Collaboration","Data Analysis","Process Optimization","Stakeholder Management"];
+  const edu   = esc(rd?.education);
+  const certs = cleanList(rd?.certifications);
+  const projs = Array.isArray(rd?.projects) ? rd.projects.map(p=>({ name:esc(p?.name), description:esc(p?.description), impact:esc(p?.impact) })) : [];
+  const achs  = cleanList(rd?.achievements);
   const contact = [em, ph, loc, li, gh, pf].filter(Boolean).join("  |  ");
   const expItems = rd?.experience?.length
-    ? rd.experience.map(e => ({ role:e.role, company:e.company, duration:e.duration, bul:e.bullets?.length?e.bullets:bullets }))
-    : [{ role:jt, company:"", duration:"", bul:bullets.length?bullets:["Delivered measurable results aligned with organizational goals","Collaborated with cross-functional teams to drive key initiatives","Optimized processes that improved efficiency and business outcomes"] }];
+    ? rd.experience.map(e => ({ role:esc(e.role), company:esc(e.company), duration:esc(e.duration), bul:cleanList(e.bullets?.length?e.bullets:bullets) }))
+    : [{ role:jt, company:"", duration:"", bul:bullets.length?cleanList(bullets):["Delivered measurable results aligned with organizational goals","Collaborated with cross-functional teams to drive key initiatives","Optimized processes that improved efficiency and business outcomes"] }];
 
-  const sec = (title) => `<p style="font-family:Calibri,Arial;font-size:11pt;font-weight:bold;color:${accent};text-transform:uppercase;letter-spacing:1px;margin:14pt 0 4pt;border-bottom:1.5pt solid ${accent};padding-bottom:2pt;">${title}</p>`;
+  const sec = (title) => `<p style="font-family:Calibri,Arial;font-size:11pt;font-weight:bold;color:${accent};text-transform:uppercase;letter-spacing:1px;margin:12pt 0 4pt;border-bottom:1.25pt solid ${accent};padding-bottom:2pt;page-break-after:avoid;">${title}</p>`;
   const expH = expItems.map(e=>`
-    <p style="font-family:Calibri,Arial;font-size:11pt;margin:8pt 0 2pt;"><strong style="color:#1a1a1a;">${e.role}</strong>${e.company?` &nbsp;|&nbsp; <span style="color:#555;">${e.company}</span>`:""}${e.duration?` &nbsp;<span style="color:${accent};font-weight:bold;float:right;">${e.duration}</span>`:""}</p>
-    <ul style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:2pt 0 0;padding-left:20pt;">${e.bul.map(b=>`<li style="margin-bottom:2pt;line-height:1.4;">${b}</li>`).join("")}</ul>
+    <p style="font-family:Calibri,Arial;font-size:11pt;margin:7pt 0 2pt;page-break-after:avoid;"><strong style="color:#1a1a1a;">${e.role}</strong>${e.company?` &nbsp;|&nbsp; <span style="color:#555;">${e.company}</span>`:""}${e.duration?` &nbsp;<span style="color:${accent};font-weight:bold;float:right;">${e.duration}</span>`:""}</p>
+    <ul style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:2pt 0 0;padding-left:18pt;">${e.bul.map(b=>`<li style="margin-bottom:2pt;line-height:1.35;">${b}</li>`).join("")}</ul>
   `).join("");
   const projH = projs.map(p=>`
-    <p style="font-family:Calibri,Arial;font-size:11pt;margin:8pt 0 2pt;"><strong style="color:#1a1a1a;">${p.name||""}</strong></p>
-    ${p.description?`<p style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:0;line-height:1.5;">${p.description}</p>`:""}
+    <p style="font-family:Calibri,Arial;font-size:11pt;margin:7pt 0 2pt;page-break-after:avoid;"><strong style="color:#1a1a1a;">${p.name||""}</strong></p>
+    ${p.description?`<p style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:0;line-height:1.35;">${p.description}</p>`:""}
     ${p.impact?`<p style="font-family:Calibri,Arial;font-size:10pt;color:${accent};margin:2pt 0 0;font-weight:bold;">Impact: ${p.impact}</p>`:""}
   `).join("");
-  const listH = (items) => `<ul style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:2pt 0 0;padding-left:20pt;">${items.map(x=>`<li style="margin-bottom:2pt;line-height:1.4;">${x}</li>`).join("")}</ul>`;
+  const listH = (items) => `<ul style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:2pt 0 0;padding-left:18pt;">${items.map(x=>`<li style="margin-bottom:2pt;line-height:1.35;">${x}</li>`).join("")}</ul>`;
 
-  return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Resume</title><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><style>@page{size:A4;margin:1.5cm 1.8cm;}body{font-family:Calibri,Arial,sans-serif;color:#222;font-size:11pt;line-height:1.4;}</style></head><body>
+  return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Resume</title><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><style>@page{size:A4;margin:1.5cm 1.8cm;}body{font-family:Calibri,Arial,sans-serif;color:#222;font-size:11pt;line-height:1.35;}p,li{orphans:2;widows:2;}</style></head><body>
     <p style="font-family:Calibri,Arial;font-size:22pt;font-weight:bold;color:#1a1a1a;text-transform:uppercase;letter-spacing:2pt;margin:0;text-align:center;">${n}</p>
     <p style="font-family:Calibri,Arial;font-size:12pt;color:${accent};margin:2pt 0 6pt;text-align:center;font-weight:500;">${jt}</p>
     <p style="font-family:Calibri,Arial;font-size:10pt;color:#555;margin:0 0 4pt;text-align:center;">${contact}</p>
     <hr style="border:none;border-top:1pt solid #ccc;margin:8pt 0;"/>
-    ${sum?sec("Professional Summary")+`<p style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:0;line-height:1.5;">${sum}</p>`:""}
-    ${sec("Core Competencies")}<p style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:0;line-height:1.7;">${sk.join("  •  ")}</p>
+    ${sum?sec("Professional Summary")+`<p style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:0;line-height:1.4;">${sum}</p>`:""}
+    ${sec("Core Competencies")}<p style="font-family:Calibri,Arial;font-size:10.5pt;color:#333;margin:0;line-height:1.55;">${sk.join("  &bull;  ")}</p>
     ${sec("Professional Experience")}${expH}
     ${projs.length?sec("Projects & Achievements")+projH:""}
     ${certs.length?sec("Certifications")+listH(certs):""}
