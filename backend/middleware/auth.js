@@ -25,6 +25,7 @@ export async function syncUser(req, _res, next) {
         {
           $set: {
             email: clerkUser.emailAddresses?.[0]?.emailAddress || null,
+            username: clerkUser.username || null,
             name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || null,
             image_url: clerkUser.imageUrl || null,
           },

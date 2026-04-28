@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createHmac } from 'crypto';
 import Razorpay from 'razorpay';
 import Subscription from '../models/Subscription.js';
-// User import not needed for demo bypass (uses userId directly)
+import User from '../models/User.js';
 import { requireAuth, syncUser, extractUser } from '../middleware/auth.js';
 
 const router = Router();
@@ -23,9 +23,29 @@ function getRazorpay() {
 }
 
 /** Helper: returns a synthetic Closer sub if the user is the demo account */
-function getDemoSub(userId) {
+async function getDemoSub(userId) {
   const demoUserId = process.env.DEMO_TEST_USER_ID;
-  if (!demoUserId || userId !== demoUserId) return null;
+  const demoEmail = process.env.DEMO_TEST_EMAIL;
+  const demoUsername = process.env.DEMO_TEST_USERNAME;
+  
+  if (!demoUserId && !demoEmail && !demoUsername) return null;
+
+  // Check ID directly first (fastest)
+  if (demoUserId && userId === demoUserId) return createDemoObject(userId);
+
+  // Check Email/Username (needs DB lookup)
+  if (demoEmail || demoUsername) {
+    const user = await User.findById(userId).lean();
+    if (user) {
+      if (demoEmail && user.email === demoEmail) return createDemoObject(userId);
+      if (demoUsername && user.username === demoUsername) return createDemoObject(userId);
+    }
+  }
+
+  return null;
+}
+
+function createDemoObject(userId) {
   return {
     _id: 'demo_bypass',
     user_id: userId,
@@ -46,7 +66,7 @@ router.get('/', requireAuth(), syncUser, extractUser, async (req, res) => {
       .sort({ purchased_at: -1 });
 
     // Inject demo sub if applicable
-    const demoSub = getDemoSub(req.userId);
+    const demoSub = await getDemoSub(req.userId);
     const all = demoSub ? [demoSub, ...subscriptions] : subscriptions;
 
     res.json({ subscriptions: all });
@@ -60,7 +80,7 @@ router.get('/', requireAuth(), syncUser, extractUser, async (req, res) => {
 router.get('/active', requireAuth(), syncUser, extractUser, async (req, res) => {
   try {
     // Demo bypass
-    const demoSub = getDemoSub(req.userId);
+    const demoSub = await getDemoSub(req.userId);
     if (demoSub) return res.json({ subscription: demoSub });
 
     const subscription = await Subscription.findOne({

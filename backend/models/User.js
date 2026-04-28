@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema(
   {
     _id: { type: String }, // Clerk user ID (e.g. "user_2x...")
     email: { type: String, unique: true, sparse: true },
+    username: { type: String, unique: true, sparse: true },
     name: String,
     image_url: String,
     phone: String,

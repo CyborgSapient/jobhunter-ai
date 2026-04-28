@@ -11,10 +11,16 @@ router.get('/me', requireAuth(), syncUser, extractUser, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // ── Demo account bypass ──────────────────────────
-    // If the user's Clerk ID matches DEMO_TEST_USER_ID, grant full Closer access
-    // without requiring a real Razorpay purchase.
     const demoUserId = process.env.DEMO_TEST_USER_ID;
-    if (demoUserId && req.userId === demoUserId) {
+    const demoEmail = process.env.DEMO_TEST_EMAIL;
+    const demoUsername = process.env.DEMO_TEST_USERNAME;
+    
+    const isDemo = (demoUserId && req.userId === demoUserId) || 
+                   (demoEmail && user.email === demoEmail) ||
+                   (demoUsername && user.username === demoUsername);
+
+    if (isDemo) {
+      console.log(`[AUTH] Granting demo bypass for user: ${user.username || user.email || req.userId}`);
       const [total_resumes, total_missions, total_applications] = await Promise.all([
         Resume.countDocuments({ user_id: req.userId }),
         Mission.countDocuments({ user_id: req.userId }),
